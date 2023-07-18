@@ -1,5 +1,10 @@
 package com.example.junit.dto;
 
-public class User {
+import lombok.Value;
 
+@Value(staticConstructor = "of")
+public class User {
+    Integer id;
+    String userName;
+    String password;
 }
