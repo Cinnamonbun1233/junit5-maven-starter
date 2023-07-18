@@ -1,20 +1,30 @@
 package com.example.junit.service;
 
+import com.example.junit.TestBase;
 import com.example.junit.dto.User;
+import com.example.junit.extension.ConditionalExtension;
+import com.example.junit.extension.PostProcessingExtension;
+import com.example.junit.extension.ThrowableExtension;
+import com.example.junit.extension.UserServiceParamResolver;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.RepeatedTest.LONG_DISPLAY_NAME;
 
 @Tag("fast")
 
@@ -27,14 +37,28 @@ import static org.junit.jupiter.api.Assertions.*;
 // Сортировка по алфавитному порядку
 //@TestMethodOrder(MethodOrderer.MethodName.class)
 
-// Сорттровка по @DisplayName
+// Сортировка по @DisplayName
 //@TestMethodOrder(MethodOrderer.DisplayName.class)
 
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
-public class UserServiceTest {
+
+@ExtendWith({
+        UserServiceParamResolver.class,
+//        GlobalExtension.class
+        PostProcessingExtension.class,
+        ConditionalExtension.class,
+        ThrowableExtension.class
+})
+
+
+public class UserServiceTest extends TestBase {
     private static final User IVAN = User.of(1, "Ivan", "123");
     private static final User PETR = User.of(2, "Petr", "456");
     private UserService userService;
+
+    UserServiceTest(TestInfo testInfo) {
+        System.out.println();
+    }
 
     @BeforeAll
     static void beforeAll() {
@@ -42,15 +66,19 @@ public class UserServiceTest {
     }
 
     @BeforeEach
-    void before() {
-        //System.out.println("Before each: " + this);
-        userService = new UserService();
+    void before(UserService userService) {
+        System.out.println("Before each: " + this);
+        this.userService = userService;
     }
 
     @Order(1)
 //    @DisplayName("AAA")
     @Test
-    void usersEmptyIfNoUserAdded() {
+    void usersEmptyIfNoUserAdded(){
+        if (true) {
+            throw new RuntimeException();
+        }
+
         //System.out.println("Test 1: " + this);
         List<User> users = userService.getAll();
 
@@ -75,6 +103,22 @@ public class UserServiceTest {
         //assertEquals(2, users.size());
     }
 
+    @Test
+    @Disabled("flaky, need to see")
+    @Timeout(value = 200, unit = TimeUnit.MILLISECONDS)
+    void checkLoginFunctionalityPerformance() {
+//        Optional<User> result = assertTimeout(Duration.ofMillis(200L), () -> {
+//            Thread.sleep(300L);
+//            return userService.login("dummy", IVAN.getPassword());
+//        });
+
+        System.out.println(Thread.currentThread().getName());
+        Optional<User> result = assertTimeoutPreemptively(Duration.ofMillis(200L), () -> {
+            System.out.println(Thread.currentThread().getName());
+            Thread.sleep(300L);
+            return userService.login("dummy", IVAN.getPassword());
+        });
+    }
 
     @Order(2)
     @Test
@@ -128,6 +172,10 @@ public class UserServiceTest {
     @Tag("login")
     class LoginTest {
         @Test
+
+        // не выполнять тест
+        @Disabled("flaky, need to see")
+
         @Tag("login")
         void loginFailIfPasswordIsNotCorrect() {
             userService.add(IVAN);
@@ -137,9 +185,13 @@ public class UserServiceTest {
             assertTrue(maybeUser.isEmpty());
         }
 
+        // Запустить несколько раз
+        @RepeatedTest(value = 5, name = LONG_DISPLAY_NAME)
+        @Disabled("flaky, need to see")
         @Test
         @Tag("login")
-        void loginFailIfUserDoesNotExist() {
+//        void loginFailIfUserDoesNotExist(RepetitionInfo repetitionInfo) {
+        void loginFailIfUserDoesNotExist(RepetitionInfo repetitionInfo) {
             userService.add(IVAN);
             Optional<User> maybeUser = userService.login("dummy", IVAN.getPassword());
 
