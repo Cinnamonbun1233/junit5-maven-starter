@@ -1,10 +1,10 @@
 package com.example.junit.service;
 
 import com.example.junit.TestBase;
+import com.example.junit.dao.UserDao;
 import com.example.junit.dto.User;
 import com.example.junit.extension.ConditionalExtension;
 import com.example.junit.extension.PostProcessingExtension;
-import com.example.junit.extension.ThrowableExtension;
 import com.example.junit.extension.UserServiceParamResolver;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.*;
@@ -12,8 +12,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.RepeatedTest.LONG_DISPLAY_NAME;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 
 @Tag("fast")
 
@@ -47,14 +50,19 @@ import static org.junit.jupiter.api.RepeatedTest.LONG_DISPLAY_NAME;
 //        GlobalExtension.class
         PostProcessingExtension.class,
         ConditionalExtension.class,
-        ThrowableExtension.class
+//        ThrowableExtension.class
+        MockitoExtension.class
 })
-
 
 public class UserServiceTest extends TestBase {
     private static final User IVAN = User.of(1, "Ivan", "123");
     private static final User PETR = User.of(2, "Petr", "456");
+    @InjectMocks
     private UserService userService;
+    @Mock(lenient = true)
+    private UserDao userDao;
+    @Captor
+    private ArgumentCaptor<Integer> argumentCaptor;
 
     UserServiceTest(TestInfo testInfo) {
         System.out.println();
@@ -66,18 +74,53 @@ public class UserServiceTest extends TestBase {
     }
 
     @BeforeEach
-    void before(UserService userService) {
+    void before() {
         System.out.println("Before each: " + this);
-        this.userService = userService;
+//        lenient().when(userDao.delete(IVAN.getId())).thenReturn(true);
+        Mockito.doReturn(true).when(userDao).delete(IVAN.getId());
+//        Mockito.mock(UserDao.class, withSettings().lenient());
+
+//        this.userDao = Mockito.mock(UserDao.class);
+//        this.userDao = Mockito.spy(new UserDao());
+//        this.userService = new UserService(userDao);
+    }
+
+    @Test
+    void throwExceptionIfDatabaseIsNotAvailable() {
+        doThrow(RuntimeException.class).when(userDao).delete(IVAN.getId());
+        assertThrows(RuntimeException.class, () -> userService.delete(IVAN.getId()));
+    }
+
+    @Test
+    void shouldDeleteExistedUser() {
+        userService.add(IVAN);
+//        Mockito.doReturn(true).when(userDao).delete(IVAN.getId());
+
+        // предпочтительный вариант
+//        Mockito.doReturn(true).when(userDao).delete(Mockito.any());
+
+//        Mockito.when(userDao.delete(IVAN.getId())).thenReturn(true);
+
+        boolean deleteResult = userService.delete(IVAN.getId());
+
+//        ArgumentCaptor<Integer> argumentCaptor = ArgumentCaptor.forClass(Integer.class);
+        Mockito.verify(userDao, Mockito.atLeast(1)).delete(argumentCaptor.capture());
+//        Mockito.verifyNoInteractions();
+
+        assertThat(argumentCaptor.getValue()).isEqualTo(IVAN.getId());
+
+//        Mockito.reset(userDao);
+
+        assertThat(deleteResult).isTrue();
     }
 
     @Order(1)
 //    @DisplayName("AAA")
     @Test
-    void usersEmptyIfNoUserAdded(){
-        if (true) {
-            throw new RuntimeException();
-        }
+    void usersEmptyIfNoUserAdded() {
+//        if (true) {
+//            throw new RuntimeException();
+//        }
 
         //System.out.println("Test 1: " + this);
         List<User> users = userService.getAll();
@@ -91,6 +134,10 @@ public class UserServiceTest extends TestBase {
 
     @Test
     void usersSizeIfUsersAdded() {
+        // given
+        // when
+        // then
+
         //System.out.println("Test 2: " + this);
         userService.add(IVAN);
         userService.add(PETR);
@@ -174,7 +221,7 @@ public class UserServiceTest extends TestBase {
         @Test
 
         // не выполнять тест
-        @Disabled("flaky, need to see")
+//        @Disabled("flaky, need to see")
 
         @Tag("login")
         void loginFailIfPasswordIsNotCorrect() {
